@@ -1,0 +1,14 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\..\src\engines\TestWare.Engines.Selenium\TestWare.Engines.Selenium.csproj" />
+    <ProjectReference Include="..\TestWare.Samples.Suts.SwagLabs.Interfaces\TestWare.Samples.Suts.SwagLabs.Interfaces.csproj" />
+  </ItemGroup>
+
+</Project>
