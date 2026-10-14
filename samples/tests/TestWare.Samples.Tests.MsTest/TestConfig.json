@@ -5,9 +5,9 @@
       "CoreName": "Selenium",
       "Config": {
         "Driver": "Chrome",
-        "BaseUrl": "https://www.saucedemo.com/v1/",
-        "Service": "C:\\temp\\_drivers",
+        "BaseUrl": "https://www.saucedemo.com/",
         "Options": {
+          "ImplicitWaitTimeout": "00:00:10",
           "Arguments": [ "--incognito", "--start-maximized", "--disable-search-engine-choice-screen" ]
         }
       }
@@ -24,14 +24,11 @@
       "ScopeName": "TheInternet-tables",
       "CoreName": "Selenium",
       "Config": {
-        "Driver": "Firefox",
+        "Driver": "Chrome",
         "BaseUrl": "https://the-internet.herokuapp.com/tables",
-        "ImplicitWaitSeconds": 30,
+        "ImplicitWaitSeconds": 120,
         "Options": {
-          "BinaryLocation": "C:\\\\Program Files\\Firefox Nightly\\firefox.exe",
-          "EnableDevToolsProtocol": true,
-          "UseWebSocketUrl": true,
-          "Arguments": [ "-private" ]
+          "ImplicitWaitTimeout": "00:00:10"
         }
       }
     },
@@ -40,9 +37,9 @@
       "CoreName": "Playwright",
       "Config": {
         "Browser": "Chromium",
-        "BaseUrl": "https://www.saucedemo.com/v1/",
+        "BaseUrl": "https://www.saucedemo.com/",
         "LaunchOptions": {
-          "channel": "msedge",
+          "channel": "chrome",
           "args": [ "--start-maximized", "--incognito", "--disable-search-engine-choice-screen" ],
           "headless": false,
           "slowMo": 50

@@ -24,7 +24,7 @@ public class LinearScriptPlaywrightSwagLabs : TestSuiteBase
         var userNameInput = page.Locator("[data-test=\"username\"]");
         var passwordInput = page.Locator("[data-test=\"password\"]");
         var submitBtn = page.GetByRole(AriaRole.Button, new() { Name = "LOGIN" });
-        
+
         Reporter.StartTestStep("User enters credentials");
         await userNameInput.FillAsync("standard_user");
         await passwordInput.FillAsync("secret_sauce");
@@ -36,7 +36,6 @@ public class LinearScriptPlaywrightSwagLabs : TestSuiteBase
         evidence = Engine.CollectEvidence(EvidencePath!, "2.Logged in");
         Reporter.AddTestStepActivity(evidence);
 
-        await Assertions.Expect(page.Locator("#inventory_filter_container")).ToContainTextAsync("Products");
         await Assertions.Expect(page.GetByText("Products")).ToBeVisibleAsync();
         await Assertions.Expect(page.GetByRole(AriaRole.Combobox)).ToHaveValueAsync("az");
 
@@ -59,13 +58,13 @@ public class LinearScriptPlaywrightSwagLabs : TestSuiteBase
         var selenium = new ChromeDriver(options);
 
 
-        //selenium.Navigate().GoToUrl("https://www.saucedemo.com/v1/");
+        //selenium.Navigate().GoToUrl("https://www.saucedemo.com/");
         var playwright = await Playwright.CreateAsync();
         var browser = await playwright.Chromium.ConnectOverCDPAsync(address);
         var page = browser.Contexts[0].Pages[0];
 
-        
-        await page.GotoAsync("https://www.saucedemo.com/v1/");
+
+        await page.GotoAsync("https://www.saucedemo.com/");
         selenium.FindElement(By.Id("user-name")).SendKeys("standard_user");
         await page.Locator("[data-test=\"password\"]").FillAsync("secret_sauce");
         selenium.FindElement(By.XPath("//*[@type='submit']")).Click();
@@ -94,7 +93,7 @@ public class LinearScriptPlaywrightSwagLabs : TestSuiteBase
         var selenium = new ChromeDriver(options);
 
 
-        await page.GotoAsync("https://www.saucedemo.com/v1/");
+        await page.GotoAsync("https://www.saucedemo.com/");
         selenium.FindElement(By.Id("user-name")).SendKeys("standard_user");
         await page.Locator("[data-test=\"password\"]").FillAsync("secret_sauce");
         selenium.FindElement(By.XPath("//*[@type='submit']")).Click();

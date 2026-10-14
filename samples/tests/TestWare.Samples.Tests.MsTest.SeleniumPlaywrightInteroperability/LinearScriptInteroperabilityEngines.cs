@@ -22,7 +22,7 @@ public class LinearScriptInteroperabilityEngines
 
         var page = ((PlaywrightEngine)playwrightEngine).Page;
         var driver = ((SeleniumEngine)seleniumEngine).Driver;
-        await page.GotoAsync("https://www.saucedemo.com/v1/");
+        await page.GotoAsync("https://www.saucedemo.com/");
         driver.FindElement(By.Id("user-name")).SendKeys("standard_user");
         await page.Locator("[data-test=\"password\"]").FillAsync("secret_sauce");
         driver.FindElement(By.XPath("//*[@type='submit']")).Click();

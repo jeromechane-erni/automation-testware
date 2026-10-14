@@ -5,9 +5,9 @@
       "CoreName": "Playwright",
       "Config": {
         "Browser": "Chromium",
-        "BaseUrl": "https://www.saucedemo.com/v1/",
+        "BaseUrl": "https://www.saucedemo.com/",
         "LaunchOptions": {
-          "channel": "msedge",
+          "channel": "chrome",
           "args": [ "--start-maximized", "--incognito", "--disable-search-engine-choice-screen" ],
           "headless": false,
           "slowMo": 50

@@ -120,7 +120,7 @@ public class LinearScriptSeleniumSwagLabs : TestSuiteBase
             .Step("Navigate to cart and check product",
             args =>
             {
-                Engine.Driver.FindElement(By.XPath("//*[@data-icon='shopping-cart']")).Click();
+                Engine.Driver.FindElement(By.ClassName("shopping_cart_link")).Click();
                 var productsAtCart = Engine.Driver.FindElements(By.ClassName("inventory_item_name"));
                 var cartProductIndex = productsAtCart.IndexOf(productsAtCart.FirstOrDefault(x => x.Text == args[0]));
                 var productQuantityList = Engine.Driver.FindElements(By.ClassName("cart_quantity"));
@@ -133,22 +133,22 @@ public class LinearScriptSeleniumSwagLabs : TestSuiteBase
                 Engine.Driver.FindElement(By.Id("first-name")).SendKeys("Super");
                 Engine.Driver.FindElement(By.Id("last-name")).SendKeys("User");
                 Engine.Driver.FindElement(By.Id("postal-code")).SendKeys("1234");
-                Engine.Driver.FindElement(By.ClassName("cart_button")).Click();
+                Engine.Driver.FindElement(By.Id("continue")).Click();
             })
             .Step("Checkout Overview",
             args =>
             {
                 var overviewProducts = Engine.Driver.FindElements(By.ClassName("inventory_item_name"));
                 var overviewProductIndex = overviewProducts.IndexOf(overviewProducts.FirstOrDefault(x => x.Text == args[0]));
-                var overviewProductQuantityList = Engine.Driver.FindElements(By.ClassName("summary_quantity"));
+                var overviewProductQuantityList = Engine.Driver.FindElements(By.ClassName("cart_quantity"));
                 Assert.AreEqual(args[1].ToString(), overviewProductQuantityList[overviewProductIndex].Text);
-                Engine.Driver.FindElement(By.ClassName("cart_button")).Click();
+                Engine.Driver.FindElement(By.Id("finish")).Click();
             }, productName, expectedQuantity)
             .Step("Order finished",
             () =>
             {
                 Assert.AreEqual(
-                    "THANK YOU FOR YOUR ORDER",
+                    "Thank you for your order!",
                      Engine.Driver.FindElement(By.ClassName("complete-header")).Text
                 );
                 Assert.AreEqual(

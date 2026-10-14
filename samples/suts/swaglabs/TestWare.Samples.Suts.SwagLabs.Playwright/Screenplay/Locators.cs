@@ -16,5 +16,5 @@ public class Locators
     public static Locator Card = new(page => page.Locator(".inventory_item"));
     public static Locator Title = new(page => page.Locator(".inventory_item_name"));
     public static Locator ActionBtn = new(page => page.Locator(".btn_inventory"));
-    public static Locator Header = new(page => page.Locator(".product_label"));
+    public static Locator Header = new(page => page.Locator(".title"));
 }

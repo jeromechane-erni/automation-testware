@@ -27,7 +27,7 @@ public class RawInteroperability
         var page = browser.Contexts[0].Pages[0];
 
         
-        await page.GotoAsync("https://www.saucedemo.com/v1/");
+        await page.GotoAsync("https://www.saucedemo.com/");
         selenium.FindElement(By.Id("user-name")).SendKeys("standard_user");
         await page.Locator("[data-test=\"password\"]").FillAsync("secret_sauce");
         selenium.FindElement(By.XPath("//*[@type='submit']")).Click();
@@ -55,7 +55,7 @@ public class RawInteroperability
         var selenium = new ChromeDriver(options);
 
 
-        await page.GotoAsync("https://www.saucedemo.com/v1/");
+        await page.GotoAsync("https://www.saucedemo.com/");
         selenium.FindElement(By.Id("user-name")).SendKeys("standard_user");
         await page.Locator("[data-test=\"password\"]").FillAsync("secret_sauce");
         selenium.FindElement(By.XPath("//*[@type='submit']")).Click();

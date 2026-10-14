@@ -18,7 +18,7 @@ public class SampleTest : TestSuiteBase
     [TestWareMethod]
     public void SimpleLoginTestWithInteractions(StandardUser standardUser)
     {
-        var url = "https://www.saucedemo.com/v1/";
+        var url = "https://www.saucedemo.com/";
         var expectedProducts = 6;
 
         standardUser
@@ -34,7 +34,7 @@ public class SampleTest : TestSuiteBase
             .Performs(Click.On(Locators.SubmitBtn))
             .Answers(Presence.Of(Locators.Header), out var isPageLoaded)
             .Answers(Count.Of(Locators.Card), out var numberOfProducts);
-       
+
 
         Assert.IsTrue(isPageLoaded);
         Assert.AreEqual(expectedProducts, numberOfProducts);
@@ -43,7 +43,7 @@ public class SampleTest : TestSuiteBase
     [TestWareMethod]
     public void SimpleLoginTestWithTasks(StandardUser standardUser)
     {
-        var url = "https://www.saucedemo.com/v1/";
+        var url = "https://www.saucedemo.com/";
         var expectedProducts = 6;
 
         standardUser
@@ -63,7 +63,7 @@ public class SampleTest : TestSuiteBase
     [TestWareMethod]
     public void BuyProductsFromList(StandardUser buyer)
     {
-        var url = "https://www.saucedemo.com/v1/";
+        var url = "https://www.saucedemo.com/";
 
         buyer
             .Performs(Log.TheMessage($"{buyer.Name} Navigates to url {url}"))
@@ -76,6 +76,23 @@ public class SampleTest : TestSuiteBase
             .Performs(AddToCart.TheProduct(availableItems.ElementAt(4)))
             .Performs(Click.On(Locators.Title).WithInsideText(availableItems.ElementAt(2)))
             .Performs(AddToCart.TheProduct(availableItems.ElementAt(2)).FromDetails());
+    }
+
+    [TestWareMethod]
+    [DataRow("standard_user", "secret_sauce")]
+    public void ValidLogin(string user, string password, StandardUser standardUser)
+    {
+        var url = "https://www.saucedemo.com/";
+
+        standardUser
+            .Performs(Log.TheMessage($"{user} Navigates to url {url}"))
+            .Performs(Navigate.To(url));
+        Assert.IsTrue(standardUser.Answers(Presence.Of(Locators.LoginForm)));
+
+        standardUser.Performs(Login.WithUser(user).WithPassword(password));
+
+        // Presence waits up to 5 s for the form and answers false when it never shows.
+        Assert.IsFalse(standardUser.Answers(Presence.Of(Locators.LoginForm)));
     }
 }
 

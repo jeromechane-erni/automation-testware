@@ -34,6 +34,7 @@ public class LinearScriptSeleniumMultiScope : TestSuiteBase
 
     [TestWareMethod]
     [TestWareScopes("TheInternet-tables")]
+    [Ignore("the-internet.herokuapp.com stalls every sub-resource for 30 s from some networks, so jQuery (needed for sorting) may not load. Remove when the site responds normally.")]
     public void CheckTableCanBeSorted(ISeleniumEngine InternetTables)
     {
         var table = InternetTables.Driver.FindElement(By.Id("table1"));
