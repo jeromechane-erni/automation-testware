@@ -23,6 +23,7 @@ public sealed class TestWareBuilder
     /// A scope whose CoreName is <paramref name="coreName"/> gets a <typeparamref name="TEngine"/> built from the scope's Config.
     /// The engine needs a public constructor taking a <see cref="JsonObject"/>.
     /// It is reachable by its class and by each of its engine interfaces (ISeleniumEngine, ITestWareEngine...), keyed by scope name.
+    /// One instance per test: it is created when the test first asks for it and disposed when the test ends.
     /// </summary>
     public TestWareBuilder AddEngine<TEngine>(string coreName) where TEngine : class, ITestWareEngine
     {
@@ -30,9 +31,14 @@ public sealed class TestWareBuilder
         _engines[coreName] = (scope, services) =>
         {
             var key = scope.ScopeName;
-            services.AddKeyedSingleton<TEngine>(key, (sp, _) => ActivatorUtilities.CreateInstance<TEngine>(sp, scope.Config));
+            services.AddKeyedScoped<TEngine>(key, (sp, _) =>
+            {
+                var engine = ActivatorUtilities.CreateInstance<TEngine>(sp, scope.Config);
+                sp.GetRequiredService<TestEngines>().Created.Add(engine);   // the test's scope closes it, see TestScope.Close
+                return engine;
+            });
             foreach (var engineInterface in typeof(TEngine).GetInterfaces().Where(i => typeof(ITestWareEngine).IsAssignableFrom(i)))
-                services.AddKeyedSingleton(engineInterface, key, (sp, _) => sp.GetRequiredKeyedService<TEngine>(key));
+                services.AddKeyedScoped(engineInterface, key, (sp, _) => sp.GetRequiredKeyedService<TEngine>(key));
             return typeof(TEngine);
         };
         return this;
@@ -107,7 +113,7 @@ public sealed class TestWareBuilder
     }
 
     /// <summary>
-    /// A component that does not belong to an engine scope, for example a Screenplay actor. One shared instance for the whole run,
+    /// A component that does not belong to an engine scope, for example a Screenplay actor. One instance per test,
     /// asked for with <c>GetTestWareComponent&lt;T&gt;()</c> or as a <c>[TestWareMethod]</c> parameter.
     /// </summary>
     public TestWareBuilder AddComponent<TComponent>() where TComponent : class
@@ -116,13 +122,13 @@ public sealed class TestWareBuilder
         {
             if (!_registered.Add((typeof(TComponent), string.Empty)))
                 throw new InvalidOperationException($"{typeof(TComponent).Name} is added twice.");
-            services.AddSingleton<TComponent>();
+            services.AddScoped<TComponent>();
         });
         return this;
     }
 
     /// <summary>
-    /// A component built from the engine of a scope, for example a Screenplay ability. One shared instance per scope whose
+    /// A component built from the engine of a scope, for example a Screenplay ability. One instance per test for each scope whose
     /// engine is a <typeparamref name="TEngine"/>, asked for with <c>GetTestWareComponent&lt;T&gt;("scope")</c>.
     /// The constructor must take the engine.
     /// </summary>
@@ -138,7 +144,7 @@ public sealed class TestWareBuilder
                 if (!typeof(TEngine).IsAssignableFrom(engineType))
                     continue;
                 Claim(typeof(TComponent), scope);
-                services.AddKeyedSingleton<TComponent>(scope,
+                services.AddKeyedScoped<TComponent>(scope,
                     (sp, key) => ActivatorUtilities.CreateInstance<TComponent>(sp, sp.GetRequiredKeyedService<TEngine>(key)));
             }
         });
@@ -185,6 +191,7 @@ public sealed class TestWareBuilder
 
     internal void Build(ITestWareConfiguration config, IServiceCollection services)
     {
+        services.AddScoped<TestEngines>();
         var scopeEngines = new Dictionary<string, Type>();
 
         foreach (var scope in config.Scopes ?? [])

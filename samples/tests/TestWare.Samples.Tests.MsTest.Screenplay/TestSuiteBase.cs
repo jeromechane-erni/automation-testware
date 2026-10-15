@@ -27,9 +27,7 @@ public abstract class TestSuiteBase
         // Compile-time registration of TestWare components, instead of the automatic way in TestWare.Samples.Tests.MsTest.
         // TestWareProvider.Configure("TestConfig.json", tw => tw
         //     .AddEngine<PlaywrightEngine>("Playwright")
-        //     // the actor is one shared object for the run, as the scan made it
         //     .AddComponent<StandardUser>()
-        //     // BrowseTheWeb for every Playwright scope
         //     .AddComponent<BrowseTheWeb, PlaywrightEngine>());
 
         TestWareProvider.RegisterTestWareComponents("TestConfig.json");

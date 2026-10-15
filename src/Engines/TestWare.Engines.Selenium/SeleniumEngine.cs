@@ -50,8 +50,12 @@ public class SeleniumEngine : ISeleniumEngine
 
     public void Dispose()
     {
-        Driver.Dispose();
-        Driver.Quit();
+        // Use the field, not the Driver property: the property starts a browser when there is none.
+        // Safe to call twice, and the driver is released even if Quit throws (for example after the browser crashed).
+        var driver = _driver;
+        _driver = null;
+        try { driver?.Quit(); }
+        finally { driver?.Dispose(); }
     }
 
     public void Initialize()

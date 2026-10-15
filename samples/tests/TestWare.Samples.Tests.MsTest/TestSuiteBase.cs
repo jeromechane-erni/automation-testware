@@ -57,7 +57,6 @@ public abstract class TestSuiteBase
         var Engine = TestWareProvider.GetTestWareComponent<ITestWareEngine>(scopes.First());
         var evidence = Engine.StopRecordingEvidences(EvidencePath!, "network");
         reporter.AddTestCaseActivity(evidence);
-        Engine.Dispose();
         reporter.StopTestCase(ResultMapper.Translate(TestContext.CurrentTestOutcome));
     }
 }

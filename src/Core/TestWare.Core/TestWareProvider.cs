@@ -1,15 +1,21 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
-using TestWare.Core.Configuration;
 using System.Reflection;
-using TestWare.Core.Interfaces;
 using System.Text.Json.Nodes;
+using TestWare.Core.Configuration;
+using TestWare.Core.Interfaces;
 
 namespace TestWare.Core;
 
+/// <summary>
+/// The container of a test run. Either <see cref="Configure"/> (explicit) or <c>RegisterTestWareComponents</c> (found in the assemblies you list) fills it once at start-up. Reporters and the configuration live for the whole run.
+/// Engines, pages and components live for one test: <see cref="BeginTest"/> opens the test's scope and disposing it closes them.
+/// </summary>
 static public class TestWareProvider
 {
     static private IServiceProvider _testWarePovider;
     private static readonly IServiceCollection _testWareServices;
+    private static readonly AsyncLocal<TestScope?> _current = new();
+    private static string? _registeredBy;
 
     static TestWareProvider()
     {
@@ -17,85 +23,51 @@ static public class TestWareProvider
         _testWarePovider = _testWareServices.BuildServiceProvider();
     }
 
-    /// <summary>
-    /// Retrieves a test ware component of the specified type.
-    /// </summary>
-    /// <typeparam name="T">The type of the component to retrieve.</typeparam>
-    /// <returns>
-    /// An instance of the specified type <typeparamref name="T"/>.
-    /// </returns>
-    /// <remarks>
-    /// This method retrieves a required service of the specified type from the `_testWareProvider`.
-    /// </remarks>
-    /// <exception cref="InvalidOperationException">
-    /// Thrown when the required service of type <typeparamref name="T"/> cannot be retrieved from the provider.
-    /// </exception>
-    public static T GetTestWareComponent<T>() where T : notnull => _testWarePovider.GetRequiredService<T>();
-    /// <summary>
-    /// Retrieves a test ware component of the specified type.
-    /// </summary>
-    /// <param name="T">The <see cref="Type"/> of the component to retrieve.</param>
-    /// <returns>
-    /// An instance of the specified type <paramref name="T"/>.
-    /// </returns>
-    /// <remarks>
-    /// This method retrieves a required service of the specified type from the `_testWareProvider`.
-    /// </remarks>
-    /// <exception cref="InvalidOperationException">
-    /// Thrown when the required service of type <paramref name="T"/> cannot be retrieved from the provider.
-    /// </exception>
-    public static object GetTestWareComponent(Type T) => _testWarePovider.GetRequiredService(T);
-    /// <summary>
-    /// Retrieves a test ware component of the specified type and key.
-    /// </summary>
-    /// <param name="T">The <see cref="Type"/> of the component to retrieve.</param>
-    /// <param name="key">The key associated with the component to retrieve.</param>
-    /// <returns>
-    /// An instance of the specified type <paramref name="T"/> associated with the given key <paramref name="key"/>.
-    /// </returns>
-    /// <remarks>
-    /// This method retrieves a required keyed service of the specified type from the `_testWareProvider` using the provided key.
-    /// </remarks>
-    /// <exception cref="InvalidOperationException">
-    /// Thrown when the required keyed service of type <paramref name="T"/> cannot be retrieved from the provider using the specified key.
-    /// </exception>
-    public static object GetTestWareComponent(Type T, string key) => _testWarePovider.GetRequiredKeyedService(T, key);
+    // The running test's services when a test is active, otherwise the run-wide ones.
+    private static IServiceProvider Services => _current.Value?.Provider ?? _testWarePovider;
 
     /// <summary>
-    /// Creates a new test ware scope and sets the current scopes.
+    /// Starts a test. Until the returned scope is disposed, the engines, pages and components asked for from this
+    /// execution context belong to this test: the same engine is returned each time, and disposing the scope disposes them,
+    /// which closes the browsers. Two tests running at the same time get separate ones.
     /// </summary>
-    /// <param name="scopes">An array of strings representing the scopes to be set.</param>
-    /// <remarks>
-    /// This method creates a new scope using the `_testWareProvider` and sets the current scopes in the `TestWareScopes` service.
-    /// </remarks>
-    /// <exception cref="InvalidOperationException">
-    /// Thrown when the required service <see cref="TestWareScopes"/> cannot be retrieved from the provider.
-    /// </exception>
-    static public void CreateScope(string[] scopes)
+    public static TestScope BeginTest()
     {
-        _testWarePovider.CreateScope();
-        var s = (TestWareScopes)_testWarePovider.GetRequiredService(typeof(TestWareScopes));
-        s.CurrentScopes = scopes;
+        var test = new TestScope(_testWarePovider.CreateScope());
+        _current.Value = test;
+        return test;
     }
 
+    internal static void EndTest(TestScope test)
+    {
+        if (ReferenceEquals(_current.Value, test))
+            _current.Value = null;
+    }
+
+    /// <summary>Retrieves an unkeyed component: the configuration, a reporter, or a component added with <c>AddComponent&lt;T&gt;()</c>.</summary>
+    /// <exception cref="InvalidOperationException">Nothing of that type is registered, or it belongs to a test and no test is active.</exception>
+    public static T GetTestWareComponent<T>() where T : notnull => Services.GetRequiredService<T>();
+
+    /// <inheritdoc cref="GetTestWareComponent{T}()"/>
+    public static object GetTestWareComponent(Type T) => Services.GetRequiredService(T);
+
+    /// <summary>Retrieves a component registered for a scope (an engine, a page, an ability), keyed by the scope name.</summary>
+    /// <exception cref="InvalidOperationException">Nothing of that type is registered for the scope, or no test is active.</exception>
+    public static object GetTestWareComponent(Type T, string key) => Services.GetRequiredKeyedService(T, key);
+
+    /// <inheritdoc cref="GetTestWareComponent(Type, string)"/>
+    static public T GetTestWareComponent<T>(string key) where T : notnull => Services.GetRequiredKeyedService<T>(key);
+
     /// <summary>
-    /// Retrieves a test ware component of the specified type using the provided tags.
+    /// Retrieves a component of the specified type for the first of <paramref name="tags"/> (scope names) that has one.
     /// </summary>
-    /// <param name="T">The <see cref="Type"/> of the component to retrieve.</param>
-    /// <param name="tags">An array of strings representing the tags to search for the component.</param>
-    /// <param name="consumedTag">Outputs the tag that was successfully used to retrieve the component, or an empty string if no tag was successful.</param>
-    /// <returns>
-    /// An object representing the found test ware component. If no component is found using the tags, a default component of the specified type is returned.
-    /// </returns>
+    /// <param name="consumedTag">The scope the component came from, or an empty string when it is not tied to a scope.</param>
     /// <remarks>
-    /// This method attempts to retrieve a component from the `_testWareProvider` using each tag in the provided array.
-    /// If a component is found for a tag, it is returned and the tag is output via the <paramref name="consumedTag"/> parameter.
-    /// If no component is found for any tag, a default component of the specified type is returned,
-    /// unless the type belongs to engine scopes (an engine or a page): then it throws, because the default
-    /// would be the implementation of another scope.
+    /// If no tag has the type, the unkeyed registration is returned, but only for types no engine scope has (a reporter,
+    /// the configuration). For an engine or a page that would be the implementation of another scope, so it throws instead.
     /// </remarks>
     /// <exception cref="InvalidOperationException">
-    /// Thrown when the type is registered for engine scopes, but for none of <paramref name="tags"/>.
+    /// The type is registered for engine scopes, but for none of <paramref name="tags"/>.
     /// </exception>
     static public object GetTestWareComponentFromTags(Type T, string[] tags, out string consumedTag)
     {
@@ -105,36 +77,45 @@ static public class TestWareProvider
             if (keyed.IsKeyedService(T, key))
             {
                 consumedTag = key;
-                return _testWarePovider.GetRequiredKeyedService(T, key);
+                return Services.GetRequiredKeyedService(T, key);
             }
         }
 
         var config = _testWarePovider.GetRequiredService<ITestWareConfiguration>();
         var scopesWithType = (config.Scopes ?? []).Select(s => s.ScopeName).Where(s => keyed.IsKeyedService(T, s)).ToList();
         if (scopesWithType.Count > 0)
+        {
+            var hint = _registeredBy == nameof(RegisterTestWareComponents)
+                ? $"add typeof(<the class implementing {T.Name}>).Assembly to the list passed to RegisterTestWareComponents."
+                : "add an AddPages line for that engine to the Configure call.";
             throw new InvalidOperationException(
                 $"No {T.Name} is registered for the scopes [{string.Join(", ", tags)}]. It is registered for: {string.Join(", ", scopesWithType)}. " +
-                $"If one of these scopes should have it, add typeof(<the class implementing {T.Name}>).Assembly to the list passed to RegisterTestWareComponents.");
+                $"If one of these scopes should have it, {hint}");
+        }
 
         consumedTag = string.Empty;
-        return _testWarePovider.GetRequiredService(T);
+        return Services.GetRequiredService(T);
     }
 
     /// <summary>
-    /// Retrieves a test ware component of the specified type and key.
+    /// Reads the configuration file and registers only what <paramref name="setup"/> adds. No assembly is scanned or loaded.
     /// </summary>
-    /// <typeparam name="T">The type of the component to retrieve.</typeparam>
-    /// <param name="key">The key associated with the component to retrieve.</param>
-    /// <returns>
-    /// An instance of the specified type <typeparamref name="T"/> associated with the given key <paramref name="key"/>.
-    /// </returns>
-    /// <remarks>
-    /// This method retrieves a required keyed service of the specified type from the `_testWareProvider` using the provided key.
-    /// </remarks>
-    /// <exception cref="InvalidOperationException">
-    /// Thrown when the required keyed service of type <typeparamref name="T"/> cannot be retrieved from the provider using the specified key.
-    /// </exception>
-    static public T GetTestWareComponent<T>(string key) where T : notnull => _testWarePovider.GetRequiredKeyedService<T>(key);
+    /// <param name="config_file">The path to the configuration file.</param>
+    /// <param name="setup">Adds the engines, cockpits, page sets and components, for example <c>tw => tw.AddEngine&lt;SeleniumEngine&gt;("Selenium")</c>.</param>
+    static public void Configure(string config_file, Action<TestWareBuilder> setup)
+    {
+        EnsureOneWay(nameof(Configure));
+        var config = ConfigurationManager.ReadConfigurationFile(config_file);
+        _testWareServices.AddSingleton(config);
+
+        var builder = new TestWareBuilder();
+        setup(builder);
+        builder.Build(config, _testWareServices);
+
+        // ValidateScopes: asking for an engine, page or component outside a test throws, instead of quietly sharing one between tests.
+        _testWarePovider = _testWareServices.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
+    }
+
     /// <summary>
     /// Registers test ware components using the provided extra assemblies.
     /// </summary>
@@ -179,63 +160,35 @@ static public class TestWareProvider
     /// Thrown when there is an error reading the configuration file.
     /// </exception>
     static public void RegisterTestWareComponents(string config_file, IEnumerable<Assembly> extraAssemblies) => RegisterTestWareComponents(ConfigurationManager.ReadConfigurationFile(config_file), extraAssemblies);
-
     /// <summary>
-    /// Explicit alternative to <c>RegisterTestWareComponents</c>: reads the configuration file and registers
-    /// only what <paramref name="setup"/> adds. No assembly is scanned or loaded.
+    /// Finds the engines, cockpits and components in the loaded assemblies and registers them for the scopes of the configuration.
+    /// Cockpits live for the whole run. Engines, and the components found by the scan, live for one test (see <see cref="BeginTest"/>).
     /// </summary>
-    /// <param name="config_file">The path to the configuration file.</param>
-    /// <param name="setup">Adds the engines, cockpits and page sets, for example <c>tw => tw.AddEngine&lt;SeleniumEngine&gt;("Selenium")</c>.</param>
-    static public void Configure(string config_file, Action<TestWareBuilder> setup)
-    {
-        var config = ConfigurationManager.ReadConfigurationFile(config_file);
-        _testWareServices.AddSingleton(typeof(TestWareScopes)); // read by CreateScope(), which the MSTest wheel calls
-        _testWareServices.AddSingleton(config);
-
-        var builder = new TestWareBuilder();
-        setup(builder);
-        builder.Build(config, _testWareServices);
-
-        _testWarePovider = _testWareServices.BuildServiceProvider();
-    }
-
-    /// <summary>
-    /// Registers test ware components, cockpits, and engines into the service collection based on the provided configuration and assemblies.
-    /// </summary>
-    /// <param name="config">The <see cref="ITestWareConfiguration"/> containing the configuration for test ware components.</param>
-    /// <param name="extraAssemblies">An enumerable collection of additional assemblies to include in the registration process.</param>
-    /// <remarks>
-    /// This method performs the following actions:
-    /// - Retrieves all domain and referenced assemblies, including any extra assemblies provided.
-    /// - Registers the <see cref="TestWareScopes"/> and configuration into the service collection.
-    /// - Registers test cockpits, engines, and components by reflection based on the provided configuration.
-    /// - Configures keyed and scoped services for components that have constructors accepting keyed services.
-    /// </remarks>
     static private void RegisterTestWareComponents(ITestWareConfiguration config, IEnumerable<Assembly> extraAssemblies)
     {
+        EnsureOneWay(nameof(RegisterTestWareComponents));
         var assemblies = GetDomainAndReferencedAssemblies(extraAssemblies);
 
-        _testWareServices.AddSingleton(typeof(TestWareScopes));
+        _testWareServices.AddScoped<TestEngines>();
         //Register configuration
         _testWareServices.AddSingleton(config);
 
         //Register Test Cockpits by reflection
         var cockpitImplementedInterfaces = GetInterfacesAndImplementations<ITestWareCockpit>(assemblies);
         RegisterImplementations(_testWareServices, cockpitImplementedInterfaces);
-        var keyedCockpits = RegisterConfiguredImplementations(_testWareServices, cockpitImplementedInterfaces, config.CockpitScopes);
+        var keyedCockpits = RegisterConfiguredImplementations(_testWareServices, cockpitImplementedInterfaces, config.CockpitScopes, perTest: false);
         ThrowIfScopesUnmatched("cockpit", config.CockpitScopes, keyedCockpits, cockpitImplementedInterfaces.Keys);
 
         //Register Test engines by reflection
         var testEngineImplementedInterfaces = GetInterfacesAndImplementations<ITestWareEngine>(assemblies);
         RegisterImplementations(_testWareServices, testEngineImplementedInterfaces);
-        var keyedImplementations = RegisterConfiguredImplementations(_testWareServices, testEngineImplementedInterfaces, config.Scopes);
+        var keyedImplementations = RegisterConfiguredImplementations(_testWareServices, testEngineImplementedInterfaces, config.Scopes, perTest: true);
         ThrowIfScopesUnmatched("engine", config.Scopes, keyedImplementations, testEngineImplementedInterfaces.Keys);
 
         //Register Test components
         var componentImplementedInterfaces = GetInterfacesAndImplementations<ITestwareComponent>(assemblies);
         foreach(var componentRegistration in componentImplementedInterfaces)
         {
-            
             _testWareServices.AddScoped(componentRegistration.Key.AsType(), componentRegistration.Key);
             foreach (var keyedImplementation in keyedImplementations)
             {
@@ -247,7 +200,6 @@ static public class TestWareProvider
                     keyedImplementation.Key,
                     (provider, key) =>
                     {
-                        var parameters = Array.Empty<object>();
                         var keyedService = provider.GetRequiredKeyedService(keyedImplementation.Value, key);
                         return ActivatorUtilities.CreateInstance(provider, componentRegistration.Key.AsType(), [keyedService]);
                     });
@@ -256,19 +208,26 @@ static public class TestWareProvider
                 {
                     _testWareServices.AddScoped(interface_, componentRegistration.Key);
 
-                  
                     _testWareServices.AddKeyedScoped(
                         interface_,
                         keyedImplementation.Key,
                         (provider, key) => {
                             return provider.GetRequiredKeyedService(componentRegistration.Key, key);
                         });
-
                 }
             }
         }
-         _testWarePovider = _testWareServices.BuildServiceProvider();
+        _testWarePovider = _testWareServices.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
     }
+
+    // Configure and RegisterTestWareComponents are two ways to fill the same container. Using both in one run would register everything twice.
+    static private void EnsureOneWay(string way)
+    {
+        if (_registeredBy != null && _registeredBy != way)
+            throw new InvalidOperationException($"TestWare was already set up with {_registeredBy}. Use either Configure or RegisterTestWareComponents in a test run, not both.");
+        _registeredBy = way;
+    }
+
     /// <summary>
     /// Fails at start-up when a configured scope found no engine or cockpit, instead of registering nothing and
     /// failing later in a test with a generic "no service registered" error.
@@ -410,35 +369,56 @@ static public class TestWareProvider
     }
 
     /// <summary>
-    /// Registers configured implementations and their keyed services in the service collection.
+    /// Registers an implementation and its interfaces for one configured scope. Cockpits are shared by the whole run. Engines are
+    /// created for one test and remembered by the test's scope, which closes them when the test ends (see <see cref="TestScope.Close"/>).
     /// </summary>
-    /// <param name="serviceCollection">The service collection to which the services will be added.</param>
-    /// <param name="targets">A dictionary where the key is the type of the implementation and the value is an array of interface types implemented by the key type.</param>
-    /// <param name="scopes">A collection of configuration scopes used to configure the implementations.</param>
-    /// <returns>
-    /// A dictionary where the key is the scope name and the value is the type of the implementation registered for that scope.
-    /// </returns>
-    /// <remarks>
-    /// This method registers implementations and their interfaces in the service collection based on the provided configuration scopes.
-    /// </remarks>
-    static private void RegisterInterfacesConfiguredAndKeyed(IServiceCollection serviceCollection, TypeInfo implementation, TypeInfo[] interfaces, string key, JsonObject config)
+    static private void RegisterInterfacesConfiguredAndKeyed(IServiceCollection serviceCollection, TypeInfo implementation, TypeInfo[] interfaces, string key, JsonObject config, bool perTest)
     {
-        serviceCollection.AddSingleton(implementation.AsType());
+        if (!perTest)
+        {
+            serviceCollection.AddSingleton(implementation.AsType());
 
-        serviceCollection.AddKeyedSingleton(
+            serviceCollection.AddKeyedSingleton(
+                implementation.AsType(),
+                key,
+                (provider, key) => { return ActivatorUtilities.CreateInstance(provider, implementation.AsType(), config); }
+            );
+            foreach (var interface_ in interfaces)
+            {
+                serviceCollection.AddSingleton(
+                    interface_.AsType(),
+                    provider => { return provider.GetRequiredKeyedService(implementation.AsType(), key); }
+                );
+
+                serviceCollection.AddKeyedSingleton(
+                    interface_.AsType(),
+                    key,
+                    (provider, key) => { return provider.GetRequiredKeyedService(implementation.AsType(), key); }
+                );
+            }
+            return;
+        }
+
+        serviceCollection.AddScoped(implementation.AsType());
+
+        serviceCollection.AddKeyedScoped(
             implementation.AsType(),
             key,
-            (provider, key) => { return ActivatorUtilities.CreateInstance(provider, implementation.AsType(),config); }
+            (provider, key) =>
+            {
+                var engine = ActivatorUtilities.CreateInstance(provider, implementation.AsType(), config);
+                provider.GetRequiredService<TestEngines>().Created.Add((ITestWareEngine)engine);
+                return engine;
+            }
         );
         foreach (var interface_ in interfaces)
         {
-            serviceCollection.AddSingleton(
+            serviceCollection.AddScoped(
                 interface_.AsType(),
                 provider => { return provider.GetRequiredKeyedService(implementation.AsType(), key); }
             );
 
-
-            serviceCollection.AddKeyedSingleton(
+            serviceCollection.AddKeyedScoped(
                 interface_.AsType(),
                 key,
                 (provider, key) => { return provider.GetRequiredKeyedService(implementation.AsType(), key); }
@@ -447,21 +427,10 @@ static public class TestWareProvider
     }
 
     /// <summary>
-    /// Registers configured implementations for the specified targets and scopes.
+    /// Registers the implementations whose public constant <c>Name</c> equals the <c>CoreName</c> of a scope, once for each such scope.
     /// </summary>
-    /// <param name="serviceCollection">The service collection to register the implementations with.</param>
-    /// <param name="targets">A dictionary where the keys are target <see cref="TypeInfo"/> and the values are arrays of <see cref="TypeInfo"/> representing the implementations.</param>
-    /// <param name="scopes">An enumerable collection of <see cref="ConfigurationScope"/> representing the scopes to register.</param>
-    /// <returns>
-    /// A dictionary where the keys are scope names and the values are the corresponding target types.
-    /// </returns>
-    /// <remarks>
-    /// This method registers implementations for the specified targets and scopes in the provided service collection.
-    /// </remarks>
-    /// <exception cref="ArgumentNullException">
-    /// Thrown when <paramref name="serviceCollection"/>, <paramref name="targets"/>, or <paramref name="scopes"/> is null.
-    /// </exception>
-    static private Dictionary<string, Type> RegisterConfiguredImplementations(IServiceCollection serviceCollection, IDictionary<TypeInfo, TypeInfo[]> targets, IEnumerable<ConfigurationScope> scopes)
+    /// <returns>The scopes that got an implementation, and which one.</returns>
+    static private Dictionary<string, Type> RegisterConfiguredImplementations(IServiceCollection serviceCollection, IDictionary<TypeInfo, TypeInfo[]> targets, IEnumerable<ConfigurationScope> scopes, bool perTest)
     {
         var keyedImplementations = new Dictionary<string, Type>();
         if (scopes?.Count() > 0)
@@ -471,7 +440,7 @@ static public class TestWareProvider
                 var coreName = target.Key.GetField("Name")?.GetValue(null)?.ToString();
                 foreach (var scope in scopes.Where(scope => scope.CoreName == coreName))
                 {
-                    RegisterInterfacesConfiguredAndKeyed(serviceCollection, target.Key, target.Value, scope.ScopeName, scope.Config);
+                    RegisterInterfacesConfiguredAndKeyed(serviceCollection, target.Key, target.Value, scope.ScopeName, scope.Config, perTest);
                     keyedImplementations[scope.ScopeName] = target.Key;
                 };
             }
@@ -479,10 +448,3 @@ static public class TestWareProvider
         return keyedImplementations;
     }
 }
-
-// TODO: MOVE ELSEWhere
-internal class TestWareScopes
-{
-    internal string[] CurrentScopes { get; set; } = [];
-}
-

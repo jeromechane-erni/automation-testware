@@ -9,11 +9,15 @@ namespace TestWare.Samples.Tests.NUnitIntegration;
 
 /// <summary>
 /// NUnit equivalent of the MSTest TestSuiteBase plus the parameter injection of [TestWareMethod].
-/// Per test: pick the scope from [TestWareScopes], start its engine, expose pages, and on teardown
-/// attach a screenshot when the test failed and close the browser.
+/// Per test: open the test's scope, pick the scope name from [TestWareScopes], start its engine, expose pages,
+/// and on teardown attach a screenshot when the test failed. Disposing the test's scope closes the browser.
+/// NUnit reuses one fixture instance for all tests of a fixture; this base keeps per-test state in fields,
+/// so each test gets its own instance. Otherwise tests running in parallel would overwrite each other's engine.
 /// </summary>
+[FixtureLifeCycle(LifeCycle.InstancePerTestCase)]
 public abstract class TestWareTestBase
 {
+    private TestScope? _test;
     private string? _scope;
     private bool _engineStarted;
 
@@ -35,26 +39,23 @@ public abstract class TestWareTestBase
             config.EvidenceBasePath,
             $"{DateTime.Now:yyyyMMdd-HHmmss}_{SafeFileName(test.Name)}");
 
-        Engine = TestWareProvider.GetTestWareComponent<ITestWareEngine>(_scope);
+        _test = TestWareProvider.BeginTest();
+        Engine = _test.Get<ITestWareEngine>(_scope);
         Engine.Initialize();
         _engineStarted = true;
     }
 
     /// <summary>Page for the scope of the running test, for example <c>Page&lt;ILoginPage&gt;()</c>.</summary>
     protected T Page<T>() where T : notnull
-        => TestWareProvider.GetTestWareComponent<T>(_scope ?? throw new InvalidOperationException("No active TestWare scope."));
+        => (_test ?? throw new InvalidOperationException("No active TestWare test.")).Get<T>(_scope!);
 
     [TearDown]
     public void TestWareTearDown()
     {
-        // If setup failed before the browser opened, there is nothing to capture or close.
-        // (Disposing then would make the engine start a browser just to close it.)
-        if (!_engineStarted)
-            return;
-
         try
         {
-            if (TestContext.CurrentContext.Result.Outcome.Status == TestStatus.Failed)
+            // If setup failed before the browser opened, there is nothing to capture.
+            if (_engineStarted && TestContext.CurrentContext.Result.Outcome.Status == TestStatus.Failed)
             {
                 var screenshot = Engine.CollectEvidence(EvidencePath, "FAILED");
                 TestContext.AddTestAttachment(screenshot, "Screenshot at failure");
@@ -62,7 +63,8 @@ public abstract class TestWareTestBase
         }
         finally
         {
-            Engine.Dispose();
+            _test?.Dispose();   // closes the browser
+            _test = null;
             _engineStarted = false;
         }
     }

@@ -36,8 +36,13 @@ public class PlaywrightEngine : ITestWareEngine
 
     public void Dispose()
     {
-        Browser?.DisposeAsync();
-        _Playwright?.Dispose();
+        // Safe to call twice: the test's scope disposes the engine even if the test already did.
+        var browser = Browser;
+        var playwright = _Playwright;
+        Browser = null;
+        _Playwright = null;
+        browser?.DisposeAsync();
+        playwright?.Dispose();
     }
 
     public async Task InitializeAsync()

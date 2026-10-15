@@ -53,6 +53,5 @@ public abstract class TestSuiteBase
         var scopes = TestWareAttributes.GetTestWareScopes(TestContext!.ManagedType!, TestContext.TestName!);
         var Engine = TestWareProvider.GetTestWareComponent<ITestWareEngine>(scopes.First());
         var evidence = Engine.StopRecordingEvidences(EvidencePath!, "network");
-        Engine.Dispose();
     }
 }
