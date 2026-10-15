@@ -55,15 +55,6 @@
         "ReportPath": "C:\\Temp\\Results",
         "ReportName": "CustomReport.html"
       }
-    },
-    {
-      "ScopeName": "Remote",
-      "CoreName": "ReportPortal",
-      "Config": {
-        "Url": "https://demo.reportportal.io",
-        "ProjectName": "default_personal",
-        "ApiKey": "my-uuid_kW78nVfrTneCkE5NIggEdpnUoMrJ0cpb_ZpWMVDa2nlzpMF5YgJkYfIjox3LkI35"
-      }
     }
   ],
   "EvidenceBasePath": "C:\\Temp\\Results"

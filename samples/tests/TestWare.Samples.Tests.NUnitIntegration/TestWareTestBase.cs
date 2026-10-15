@@ -40,7 +40,7 @@ public abstract class TestWareTestBase
         _engineStarted = true;
     }
 
-    /// <summary>Page object for the scope of the running test (Selenium or any other engine registered for it).</summary>
+    /// <summary>Page for the scope of the running test, for example <c>Page&lt;ILoginPage&gt;()</c>.</summary>
     protected T Page<T>() where T : notnull
         => TestWareProvider.GetTestWareComponent<T>(_scope ?? throw new InvalidOperationException("No active TestWare scope."));
 

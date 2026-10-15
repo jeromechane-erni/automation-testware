@@ -13,9 +13,6 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
     <PackageReference Include="NUnit" Version="4.3.2" />
     <PackageReference Include="NUnit3TestAdapter" Version="4.6.0" />
-    <!-- TestWare force-loads every assembly referenced in the process, including the NUnit adapter's.
-         The adapter references this one but does not ship it, so it is added here. -->
-    <PackageReference Include="TestCentric.Metadata" Version="3.0.2" />
   </ItemGroup>
 
   <ItemGroup>

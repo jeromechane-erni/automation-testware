@@ -50,7 +50,7 @@ Each test project ships a `TestConfig.json` copied to the output folder. Its sha
 ```
 
 - `ScopeName` is the key a test uses to pick this entry.
-- `CoreName` names the engine or cockpit kind. It must equal the public constant `Name` of the engine or cockpit class (for example `SeleniumEngine.Name = "Selenium"`).
+- `CoreName` names the engine or cockpit kind. With `RegisterTestWareComponents` it must equal the public constant `Name` of the engine or cockpit class (for example `SeleniumEngine.Name = "Selenium"`). With `Configure` it must equal the name given to `AddEngine` / `AddCockpit`.
 - `Config` is an untyped `JsonObject`. Each engine or cockpit deserialises it into its own settings class (`SeleniumConfig`, `PlaywrightConfig`, or reads keys directly).
 
 Several scopes may use the same `CoreName` with different settings. That is how one test project runs the same engine against different sites or browsers.
@@ -59,11 +59,11 @@ Several scopes may use the same `CoreName` with different settings. That is how 
 
 `src/Core/TestWare.Core/TestWareProvider.cs` is a static class holding one `IServiceCollection` and one `IServiceProvider` for the whole test process.
 
-Registration happens once, at process start, from the runner's assembly-level hook, by calling `RegisterTestWareComponents(configFile, extraAssemblies)`. It works by reflection:
+Registration happens once, at process start, from the runner's assembly-level hook, in one of two ways. `Configure(configFile, tw => tw.AddEngine(...).AddPages(...))` registers only what it is told; see section 3.5. The original way, still used by the MSTest samples, is `RegisterTestWareComponents(configFile, extraAssemblies)`. It works by reflection:
 
 1. It takes every assembly already loaded in the process, loads the `extraAssemblies`, and keeps loading everything those reference until no new assembly appears.
 2. It scans all of them for classes implementing `ITestWareCockpit`, `ITestWareEngine` and `ITestwareComponent` (directly or through a sub-interface).
-3. For every scope in the config it looks for the engine (or cockpit) class whose public constant `Name` equals the scope's `CoreName`. A `CoreName` that matches nothing registers nothing and raises no error.
+3. For every scope in the config it looks for the engine (or cockpit) class whose public constant `Name` equals the scope's `CoreName`. A `CoreName` that matches nothing throws at startup.
 
 What it registers, per matching scope:
 
@@ -80,7 +80,7 @@ Resolution is done with:
 ```csharp
 TestWareProvider.GetTestWareComponent<T>()           // unkeyed
 TestWareProvider.GetTestWareComponent<T>("scope")    // keyed by scope name
-TestWareProvider.GetTestWareComponentFromTags(type, scopes, out consumed)  // tries each scope, falls back to unkeyed
+TestWareProvider.GetTestWareComponentFromTags(type, scopes, out consumed)  // tries each scope; falls back to unkeyed only for types no engine scope has (cockpit, config), otherwise throws
 ```
 
 `CreateScope(scopes)` only stores the current scope names in a `TestWareScopes` singleton. The DI scope it creates is discarded. Nothing reads `CurrentScopes` today.
@@ -99,7 +99,74 @@ TestWareProvider.GetTestWareComponentFromTags(type, scopes, out consumed)  // tr
 
 `ITestWareCockpit`: `Initialize`, `Dispose`, and Start/Stop for Suite, Case and Step, each returning a `Guid` handle, plus `Add...Activity(params string[])`. An activity that is an existing file path becomes an attachment, anything else becomes a log line. Results use the `TestWareResult` enum (Pass, Fail, Skip, Unknown).
 
-`ITestwareComponent` is an empty marker interface. The scan finds page objects through it: a page interface extends it, and the classes implementing that interface are registered as components.
+`ITestwareComponent` is an empty marker interface. The scan finds page objects through it: a page interface extends it, and the classes implementing that interface are registered as components. `Configure` does not use it.
+
+### 3.5 Declaring pages with `Configure` and page sets
+
+Used by the NUnit sample. Code: `src/Core/TestWare.Core/TestWareBuilder.cs`. A page is declared with three pieces, and nothing is scanned.
+
+**1. The page interface** (SUT interfaces project). What a test can do on the page. Engine-neutral.
+
+```csharp
+public interface ILoginPage { void SetUserName(string value); ... }
+```
+
+**2. The page set** (SUT interfaces project). One interface per application that lists every page as a property. It is the checklist each engine must fill.
+
+```csharp
+public interface ISwagLabsPages
+{
+    ILoginPage Login { get; }
+}
+```
+
+**3. One implementation of the page set per engine** (SUT engine project). Each property creates the engine's page with plain `new`.
+
+```csharp
+public class SeleniumSwagLabsPages(ISeleniumEngine engine) : ISwagLabsPages
+{
+    public ILoginPage Login => new LoginPage(engine);
+}
+```
+
+**Registration** (the test project's start-up hook, for example `TestWareRun.cs`). One `AddEngine` per `CoreName` used in the config, one `AddPages` per application and engine:
+
+```csharp
+TestWareProvider.Configure(configFile, tw => tw
+    .AddEngine("Selenium", cfg => new SeleniumEngine(cfg))
+    .AddPages<ISwagLabsPages, ISeleniumEngine>(engine => new SeleniumSwagLabsPages(engine)));
+```
+
+What `Configure` does with this:
+
+- Each config scope is matched to the `AddEngine` whose name equals its `CoreName`. The engine is registered keyed by scope name, by its class and by each of its engine interfaces (`ISeleniumEngine`, `ITestWareEngine`).
+- `AddPages<TPages, TEngine>` applies to every scope whose engine is a `TEngine`. For each such scope it registers the page set, and each property type of the page set (`ILoginPage`), keyed by scope name. It reads the properties of that one interface and of the interfaces it extends; nothing else is inspected.
+
+**Use in a test.** The test asks for the page, not the page set: `Page<ILoginPage>()` in the NUnit base class, or an `ILoginPage loginPage` parameter with `[TestWareMethod]`. Each call creates a new page object for the test's scope.
+
+**Pages only some engines have.** Split the page set: the shared pages in one interface, the extra pages in an interface that extends it. Each engine implements the set it supports and is registered with that set.
+
+```csharp
+public interface IKaimaiPages        { ILoginPage Login { get; } }
+public interface IKaimaiAndroidPages : IKaimaiPages { INotificationSettingsPage NotificationSettings { get; } }
+
+.AddPages<IKaimaiAndroidPages, AndroidEngine>(e => new AndroidPages(e))   // Login + NotificationSettings
+.AddPages<IKaimaiPages, IosEngine>(e => new IosPages(e))                  // Login
+```
+
+Applications that share no pages get separate page sets.
+
+**When a mistake is caught:**
+
+| Mistake | Caught |
+|---|---|
+| An engine's page set implementation misses a page | Build (CS0535) |
+| A config `CoreName` has no `AddEngine` / `AddCockpit` | Start-up |
+| The same page set or page type added twice for one scope | Start-up |
+| The `AddPages` line for an application is missing | When a test asks for the page. With `[TestWareMethod]` the message names the scopes that have it; `GetTestWareComponent<T>("scope")` (NUnit `Page<T>()`) gives the generic "No service registered" message. |
+| A test asks for a page its scope's engine does not have | When the test asks for it, same messages as above |
+
+Do not fill a page an engine lacks with `throw new NotImplementedException()`: it compiles, so the gap only shows when a test runs. Split the page set instead.
 
 ## 4. Engines
 
@@ -135,7 +202,7 @@ Both keep a `Dictionary<Guid, handle>` so a test can address a suite, case or st
 
 ### 6.2 NUnit
 
-No wheel project. `samples/tests/TestWare.Samples.Tests.NUnitIntegration/TestWareTestBase.cs` shows the equivalent done by hand (its `TestWareRun.cs` lists the assemblies to scan): `[SetUp]` reads the scope attribute, starts the engine, `Page<T>()` resolves a keyed page, `[TearDown]` takes a screenshot on failure and disposes.
+No wheel project. `samples/tests/TestWare.Samples.Tests.NUnitIntegration/TestWareTestBase.cs` shows the equivalent done by hand (its `TestWareRun.cs` registers with `Configure`): `[SetUp]` reads the scope attribute, starts the engine, `Page<T>()` resolves a page for the test's scope, `[TearDown]` takes a screenshot on failure and disposes.
 
 ## 7. Assistance: fluent steps
 
@@ -180,9 +247,11 @@ Engines are singletons per scope, so `Initialize` and `Dispose` are called once 
 
 | Goal | Steps |
 |---|---|
-| New engine | Implement `ITestWareEngine` (and your own interface if pages should depend on an abstraction). Add `public const string Name = "YourName"` and a constructor taking a `JsonObject`. Use `"CoreName": "YourName"` in the config. Make sure the engine's assembly is in the list passed to `RegisterTestWareComponents`. |
-| New cockpit | Same with `ITestWareCockpit`. |
-| New page object | Define the interface in a SUT project and make it extend `ITestwareComponent`. Implement it per engine with a public constructor taking the engine interface or class. Add the SUT assemblies to the list passed to `RegisterTestWareComponents`. |
+| New engine | Implement `ITestWareEngine` (and your own interface if pages should depend on an abstraction), with a constructor taking a `JsonObject`. With `Configure`: add `.AddEngine("YourName", cfg => new YourEngine(cfg))` and use `"CoreName": "YourName"` in the config. With `RegisterTestWareComponents`: add `public const string Name = "YourName"` and make sure the engine's assembly is in the list passed to it. |
+| New cockpit | Same with `ITestWareCockpit` and `AddCockpit`. |
+| New page object (`Configure`) | Add the page interface to the SUT interfaces project and a property for it to the application's page set. The build then fails until every engine's page set implementation creates it (section 3.5). |
+| New application (`Configure`) | Add a page set interface, one implementation per engine, and one `.AddPages<TPages, TEngine>(...)` line per engine in the test project's start-up hook. |
+| New page object (`RegisterTestWareComponents`) | Define the interface in a SUT project and make it extend `ITestwareComponent`. Implement it per engine with a public constructor taking the engine interface or class. Add the SUT assemblies to the list passed to `RegisterTestWareComponents`. |
 | New test project | Copy the `Hooks.cs` + `TestSuiteBase.cs` pair (MSTest) or `TestWareRun.cs` + `TestWareTestBase.cs` (NUnit), add a `TestConfig.json` copied to output. |
 | Use a second scope in one test | List both in `[TestWareScopes("a", "b")]`, declare two page parameters; they are filled in order. |
 
@@ -194,9 +263,9 @@ Facts worth knowing before touching the code. None of these is a change request 
 - Folder names and namespaces differ: folder `TestWare.Engines.Selenium`, namespace `TestWare.Engines.SeleniumEngine`. Same for Playwright.
 - The marker interface is spelled `ITestwareComponent` (lower-case w).
 - `TestWareScopes` the attribute and `TestWareScopes` the internal holder class share a name in different namespaces.
-- `CoreName` is matched against a `Name` constant found by reflection. A typo registers nothing and gives no error until a test asks for the missing component.
-- `RegisterTestWareComponents` force-loads every assembly referenced by anything in the process. Under NUnit this pulls in the test adapter's references, which is why the NUnit sample project carries the `TestCentric.Metadata` package (see the comment in its csproj).
-- Pages are matched to engines by looking at constructor parameters, so a page can silently end up under a scope you did not intend, or under none.
+- With `RegisterTestWareComponents`, `CoreName` is matched against a `Name` constant found by reflection. A typo throws at startup.
+- `RegisterTestWareComponents` force-loads every assembly referenced by anything in the process. Under NUnit this pulls in the test adapter's references, which needed the `TestCentric.Metadata` package. The NUnit sample now uses `Configure` and no longer carries it.
+- With `RegisterTestWareComponents`, pages are matched to engines by looking at constructor parameters, so a page can silently end up under a scope you did not intend, or under none.
 - `ReportPortalCockpit.Dispose` is `async void`, so the launch may not be finished when the process exits.
 - The sample `TestConfig.json` files contain a ReportPortal API key for the public demo server. Treat it as a placeholder.
 - Targets `net8.0` despite the "net6" in the original repository name.

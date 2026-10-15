@@ -90,27 +90,32 @@ static public class TestWareProvider
     /// <remarks>
     /// This method attempts to retrieve a component from the `_testWareProvider` using each tag in the provided array.
     /// If a component is found for a tag, it is returned and the tag is output via the <paramref name="consumedTag"/> parameter.
-    /// If no component is found for any tag, a default component of the specified type is returned.
-    /// </remarks>    
-    /// <exception cref="ArgumentNullException">
-    /// Thrown when <paramref name="T"/> or <paramref name="tags"/> is null.
+    /// If no component is found for any tag, a default component of the specified type is returned,
+    /// unless the type belongs to engine scopes (an engine or a page): then it throws, because the default
+    /// would be the implementation of another scope.
+    /// </remarks>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when the type is registered for engine scopes, but for none of <paramref name="tags"/>.
     /// </exception>
     static public object GetTestWareComponentFromTags(Type T, string[] tags, out string consumedTag)
     {
-        foreach(var key in tags)
+        var keyed = _testWarePovider.GetRequiredService<IServiceProviderIsKeyedService>();
+        foreach (var key in tags)
         {
-            try
-            {                
-                var foundComponent = _testWarePovider.GetRequiredKeyedService(T, key);
-                consumedTag = key;
-                return foundComponent;
-            }
-            catch
+            if (keyed.IsKeyedService(T, key))
             {
-                continue;
+                consumedTag = key;
+                return _testWarePovider.GetRequiredKeyedService(T, key);
             }
-
         }
+
+        var config = _testWarePovider.GetRequiredService<ITestWareConfiguration>();
+        var scopesWithType = (config.Scopes ?? []).Select(s => s.ScopeName).Where(s => keyed.IsKeyedService(T, s)).ToList();
+        if (scopesWithType.Count > 0)
+            throw new InvalidOperationException(
+                $"No {T.Name} is registered for the scopes [{string.Join(", ", tags)}]. It is registered for: {string.Join(", ", scopesWithType)}. " +
+                $"If one of these scopes should have it, add typeof(<the class implementing {T.Name}>).Assembly to the list passed to RegisterTestWareComponents.");
+
         consumedTag = string.Empty;
         return _testWarePovider.GetRequiredService(T);
     }
@@ -176,6 +181,25 @@ static public class TestWareProvider
     static public void RegisterTestWareComponents(string config_file, IEnumerable<Assembly> extraAssemblies) => RegisterTestWareComponents(ConfigurationManager.ReadConfigurationFile(config_file), extraAssemblies);
 
     /// <summary>
+    /// Explicit alternative to <c>RegisterTestWareComponents</c>: reads the configuration file and registers
+    /// only what <paramref name="setup"/> adds. No assembly is scanned or loaded.
+    /// </summary>
+    /// <param name="config_file">The path to the configuration file.</param>
+    /// <param name="setup">Adds the engines, cockpits and page sets, for example <c>tw => tw.AddEngine("Selenium", cfg => new SeleniumEngine(cfg))</c>.</param>
+    static public void Configure(string config_file, Action<TestWareBuilder> setup)
+    {
+        var config = ConfigurationManager.ReadConfigurationFile(config_file);
+        _testWareServices.AddSingleton(typeof(TestWareScopes)); // read by CreateScope(), which the MSTest wheel calls
+        _testWareServices.AddSingleton(config);
+
+        var builder = new TestWareBuilder();
+        setup(builder);
+        builder.Build(config, _testWareServices);
+
+        _testWarePovider = _testWareServices.BuildServiceProvider();
+    }
+
+    /// <summary>
     /// Registers test ware components, cockpits, and engines into the service collection based on the provided configuration and assemblies.
     /// </summary>
     /// <param name="config">The <see cref="ITestWareConfiguration"/> containing the configuration for test ware components.</param>
@@ -198,12 +222,14 @@ static public class TestWareProvider
         //Register Test Cockpits by reflection
         var cockpitImplementedInterfaces = GetInterfacesAndImplementations<ITestWareCockpit>(assemblies);
         RegisterImplementations(_testWareServices, cockpitImplementedInterfaces);
-        RegisterConfiguredImplementations(_testWareServices, cockpitImplementedInterfaces, config.CockpitScopes);
+        var keyedCockpits = RegisterConfiguredImplementations(_testWareServices, cockpitImplementedInterfaces, config.CockpitScopes);
+        ThrowIfScopesUnmatched("cockpit", config.CockpitScopes, keyedCockpits, cockpitImplementedInterfaces.Keys);
 
         //Register Test engines by reflection
         var testEngineImplementedInterfaces = GetInterfacesAndImplementations<ITestWareEngine>(assemblies);
         RegisterImplementations(_testWareServices, testEngineImplementedInterfaces);
         var keyedImplementations = RegisterConfiguredImplementations(_testWareServices, testEngineImplementedInterfaces, config.Scopes);
+        ThrowIfScopesUnmatched("engine", config.Scopes, keyedImplementations, testEngineImplementedInterfaces.Keys);
 
         //Register Test components
         var componentImplementedInterfaces = GetInterfacesAndImplementations<ITestwareComponent>(assemblies);
@@ -243,6 +269,28 @@ static public class TestWareProvider
         }
          _testWarePovider = _testWareServices.BuildServiceProvider();
     }
+    /// <summary>
+    /// Fails at start-up when a configured scope found no engine or cockpit, instead of registering nothing and
+    /// failing later in a test with a generic "no service registered" error.
+    /// </summary>
+    /// <param name="kind">"engine" or "cockpit", used in the message.</param>
+    /// <param name="scopes">The scopes from the configuration file.</param>
+    /// <param name="matched">The scopes <see cref="RegisterConfiguredImplementations"/> registered an implementation for.</param>
+    /// <param name="candidates">The implementations found by the scan, used to list the names that are available.</param>
+    static private void ThrowIfScopesUnmatched(string kind, IEnumerable<ConfigurationScope>? scopes, IDictionary<string, Type> matched, IEnumerable<TypeInfo> candidates)
+    {
+        var unmatched = (scopes ?? []).Where(s => !matched.ContainsKey(s.ScopeName)).ToList();
+        if (unmatched.Count == 0)
+            return;
+
+        var found = candidates.Select(c => c.GetField("Name")?.GetValue(null)?.ToString()).Where(n => n != null).Distinct().ToList();
+        var details = string.Join("; ", unmatched.Select(s => $"scope '{s.ScopeName}' needs {kind} '{s.CoreName}'"));
+        throw new InvalidOperationException(
+            $"No {kind} was found for: {details}. {kind}s found: {(found.Count > 0 ? string.Join(", ", found) : "none")}. " +
+            $"Only loaded assemblies are scanned, and an assembly nothing else references is not loaded: add typeof(<your {kind} class>).Assembly " +
+            "to the list passed to RegisterTestWareComponents, or remove the scope from the configuration file.");
+    }
+
     /// <summary>
     /// Retrieves a list of all assemblies in the current application domain, including referenced assemblies and additional assemblies provided.
     /// </summary>
