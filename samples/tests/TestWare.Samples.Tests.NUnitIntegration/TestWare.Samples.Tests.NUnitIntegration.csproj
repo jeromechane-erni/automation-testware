@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="NUnit" Version="4.3.2" />
+    <PackageReference Include="NUnit3TestAdapter" Version="4.6.0" />
+    <!-- TestWare force-loads every assembly referenced in the process, including the NUnit adapter's.
+         The adapter references this one but does not ship it, so it is added here. -->
+    <PackageReference Include="TestCentric.Metadata" Version="3.0.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Runner-neutral TestWare pieces. No MSTest wheel, no cockpits. -->
+    <ProjectReference Include="..\..\..\src\core\TestWare.Core\TestWare.Core.csproj" />
+    <ProjectReference Include="..\..\..\src\engines\TestWare.Engines.Selenium\TestWare.Engines.Selenium.csproj" />
+    <ProjectReference Include="..\..\suts\swaglabs\TestWare.Samples.Suts.SwagLabs.Interfaces\TestWare.Samples.Suts.SwagLabs.Interfaces.csproj" />
+    <ProjectReference Include="..\..\suts\swaglabs\TestWare.Samples.Suts.SwagLabs.Selenium\TestWare.Samples.Suts.SwagLabs.Selenium.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="TestConfig.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>

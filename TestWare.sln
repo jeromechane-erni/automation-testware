@@ -56,6 +56,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TestWare.Samples.Tests.MsTe
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestWare.Samples.Tests.MsTest.SeleniumPlaywrightInteroperability", "samples\tests\TestWare.Samples.Tests.MsTest.SeleniumPlaywrightInteroperability\TestWare.Samples.Tests.MsTest.SeleniumPlaywrightInteroperability.csproj", "{D2211F7B-ED55-4D7D-A7F9-E805EEE93989}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestWare.Samples.Tests.NUnitIntegration", "samples\tests\TestWare.Samples.Tests.NUnitIntegration\TestWare.Samples.Tests.NUnitIntegration.csproj", "{E37D33E4-A7F5-4D1E-BC1C-26BE034903CB}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -118,6 +120,10 @@ Global
 		{D2211F7B-ED55-4D7D-A7F9-E805EEE93989}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D2211F7B-ED55-4D7D-A7F9-E805EEE93989}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{D2211F7B-ED55-4D7D-A7F9-E805EEE93989}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E37D33E4-A7F5-4D1E-BC1C-26BE034903CB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E37D33E4-A7F5-4D1E-BC1C-26BE034903CB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E37D33E4-A7F5-4D1E-BC1C-26BE034903CB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E37D33E4-A7F5-4D1E-BC1C-26BE034903CB}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -145,6 +151,7 @@ Global
 		{93E86782-F722-4319-A874-E85D612B1879} = {E6DD59DA-446F-4EE7-AF3B-CAED5831B38A}
 		{16135A3A-2D71-46A0-A348-3D97DC07588A} = {E6DD59DA-446F-4EE7-AF3B-CAED5831B38A}
 		{D2211F7B-ED55-4D7D-A7F9-E805EEE93989} = {E6DD59DA-446F-4EE7-AF3B-CAED5831B38A}
+		{E37D33E4-A7F5-4D1E-BC1C-26BE034903CB} = {E6DD59DA-446F-4EE7-AF3B-CAED5831B38A}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {02A98266-98D7-42E2-BD4B-E9705EF3A05E}

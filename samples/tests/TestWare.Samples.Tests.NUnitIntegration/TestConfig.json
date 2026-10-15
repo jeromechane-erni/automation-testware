@@ -1,0 +1,17 @@
+{
+  "Scopes": [
+    {
+      "ScopeName": "swagLabs",
+      "CoreName": "Selenium",
+      "Config": {
+        "Driver": "Chrome",
+        "BaseUrl": "https://www.saucedemo.com/",
+        "Options": {
+          "ImplicitWaitTimeout": "00:00:10",
+          "Arguments": [ "--incognito", "--start-maximized", "--disable-search-engine-choice-screen" ]
+        }
+      }
+    }
+  ],
+  "EvidenceBasePath": "Evidence"
+}
