@@ -8,6 +8,7 @@ using System.Reflection;
 using static System.Formats.Asn1.AsnWriter;
 using TestWare.Samples.Tests.MsTest.Screenplay.Actors;
 using TestWare.Samples.Tests.MsTest.Screenplay.Abilities;
+using TestWare.Engines.PlaywrightEngine;
 
 
 namespace TestWare.Samples.Tests.MsTest.Screenplay;
@@ -23,6 +24,14 @@ public abstract class TestSuiteBase
     [AssemblyInitialize]
     public static void AssemblyInitialize(TestContext testContext)
     {
+        // Compile-time registration of TestWare components, instead of the automatic way in TestWare.Samples.Tests.MsTest.
+        // TestWareProvider.Configure("TestConfig.json", tw => tw
+        //     .AddEngine<PlaywrightEngine>("Playwright")
+        //     // the actor is one shared object for the run, as the scan made it
+        //     .AddComponent<StandardUser>()
+        //     // BrowseTheWeb for every Playwright scope
+        //     .AddComponent<BrowseTheWeb, PlaywrightEngine>());
+
         TestWareProvider.RegisterTestWareComponents("TestConfig.json");
     }
 

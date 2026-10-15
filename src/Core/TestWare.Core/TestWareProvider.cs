@@ -185,7 +185,7 @@ static public class TestWareProvider
     /// only what <paramref name="setup"/> adds. No assembly is scanned or loaded.
     /// </summary>
     /// <param name="config_file">The path to the configuration file.</param>
-    /// <param name="setup">Adds the engines, cockpits and page sets, for example <c>tw => tw.AddEngine("Selenium", cfg => new SeleniumEngine(cfg))</c>.</param>
+    /// <param name="setup">Adds the engines, cockpits and page sets, for example <c>tw => tw.AddEngine&lt;SeleniumEngine&gt;("Selenium")</c>.</param>
     static public void Configure(string config_file, Action<TestWareBuilder> setup)
     {
         var config = ConfigurationManager.ReadConfigurationFile(config_file);

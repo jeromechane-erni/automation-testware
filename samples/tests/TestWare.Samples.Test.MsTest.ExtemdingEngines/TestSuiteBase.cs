@@ -5,6 +5,8 @@ using TestWare.Core.Configuration;
 using TestWare.Core.Attributes;
 using System.Reflection;
 using TestWare.Samples.Suts.SwagLabs.Interfaces.POM;
+using TestWare.Samples.Test.MsTest.ExtendingEngines.EngineExtension;
+using TestWare.Samples.Suts.SwagLabs.Selenium.POM;
 
 
 namespace TestWare.Samples.Test.MsTest.ExtendingEngines;
@@ -20,6 +22,10 @@ public abstract class TestSuiteBase
     [AssemblyInitialize]
     public static void AssemblyInitialize(TestContext testContext)
     {
+        // Compile-time registration of TestWare components, instead of the automatic way in TestWare.Samples.Tests.MsTest.
+        // TestWareProvider.Configure("TestConfig.json", tw => tw
+        //     .AddEngine<SeleniumEngineWithNetworkTraces>("ExtendedSelenium")
+        //     .AddPages<ISwagLabsPages, SeleniumSwagLabsPages>());
 
         IEnumerable<Assembly> extraAssemblies = [
             typeof(ILoginPage).Assembly,

@@ -20,8 +20,8 @@ public class TestWareRun
 
         TestWareProvider.Configure(configFile, tw => tw
             // "CoreName": "Selenium" in TestConfig.json -> this engine
-            .AddEngine("Selenium", cfg => new SeleniumEngine(cfg))
+            .AddEngine<SeleniumEngine>("Selenium")
             // SwagLabs pages on a Selenium scope
-            .AddPages<ISwagLabsPages, ISeleniumEngine>(engine => new SeleniumSwagLabsPages(engine)));
+            .AddPages<ISwagLabsPages, SeleniumSwagLabsPages>());
     }
 }
