@@ -10,17 +10,17 @@ Three kinds of document, each with one job:
 
 ## Project guides
 
-Add a row when a guide is written.
+Every project under `src/` has a guide. The repository [README](../README.md) explains how to run the sample tests on a new machine.
 
 | Project | Guide |
 |---|---|
-| TestWare.Core | [src/Core/TestWare.Core/docs/README.md](../src/Core/TestWare.Core/docs/README.md) (pages only so far) |
-| TestWare.Engines.Selenium | not written yet |
-| TestWare.Engines.Playwright | not written yet |
-| TestWare.Cockpits.ExtentReports | not written yet |
-| TestWare.Cockpits.ReportPortal | not written yet |
-| TestWare.Wheels.MsTestWheel | not written yet |
-| TestWare.Assistance.FluentSteps | not written yet |
+| TestWare.Core | [src/Core/TestWare.Core/docs/README.md](../src/Core/TestWare.Core/docs/README.md) |
+| TestWare.Engines.Selenium | [src/Engines/TestWare.Engines.Selenium/docs/README.md](../src/Engines/TestWare.Engines.Selenium/docs/README.md) |
+| TestWare.Engines.Playwright | [src/Engines/TestWare.Engines.Playwright/docs/README.md](../src/Engines/TestWare.Engines.Playwright/docs/README.md) |
+| TestWare.Cockpits.ExtentReports | [src/cockpits/TestWare.Cockpits.ExtentReports/docs/README.md](../src/cockpits/TestWare.Cockpits.ExtentReports/docs/README.md) |
+| TestWare.Cockpits.ReportPortal | [src/cockpits/TestWare.Cockpits.ReportPortal/docs/README.md](../src/cockpits/TestWare.Cockpits.ReportPortal/docs/README.md) |
+| TestWare.Wheels.MsTestWheel | [src/Wheels/TestWare.Wheels.MsTestWheel/docs/README.md](../src/Wheels/TestWare.Wheels.MsTestWheel/docs/README.md) |
+| TestWare.Assistance.FluentSteps | [src/Assistance/TestWare.Assistance.FluentSteps/docs/README.md](../src/Assistance/TestWare.Assistance.FluentSteps/docs/README.md) |
 
 When written, a guide lives at `<project>/docs/README.md` and the row links to it, for example `[src/Core/TestWare.Core/docs/README.md](../src/Core/TestWare.Core/docs/README.md)`.
 

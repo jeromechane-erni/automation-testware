@@ -61,3 +61,29 @@ The code before entry 0001 is commit `3fd5c98` ("Added Nunit version for one tes
 **Guide:** `src/Core/TestWare.Core/docs/README.md` updated.
 
 **Open:** The reporters are still shared for the run, so parallel runs are not yet safe for reporting. The per-test steps (choose the scope, initialize the engine, evidence folder, screenshot on failure) are still copied into each test project's base class. Behaviour was checked with fake engines through the real MSTest wheel and an NUnit project (parallel, with and without the lifecycle attribute); the sample tests themselves have not been run since this change.
+
+### 0005 · 2026-10-15 · Let the container build the pages of a page set
+
+**Files:** `src/Core/TestWare.Core/TestWareBuilder.cs`, `samples/suts/swaglabs/TestWare.Samples.Suts.SwagLabs.Selenium/POM/SeleniumSwagLabsPages.cs`, `samples/suts/swaglabs/TestWare.Samples.Suts.SwagLabs.Playwright/POM/PlaywrightSwagLabsPages.cs`
+
+**What:**
+- A page-set implementation lists its pages as constructor parameters and exposes them through the interface: `SeleniumSwagLabsPages(LoginPage login) : ISwagLabsPages { public ILoginPage Login => login; }`. `AddPages` builds each page class with the scope's engine (and anything else registered), then builds the page set with those pages. Nobody writes `new LoginPage(engine)`. A page-set implementation that takes the engine and uses `new` still works.
+- The engine type of a page set is now read from the constructors of its pages (and of the implementation itself), not only from the implementation. Together they must name exactly one engine type; otherwise `AddPages` throws at start-up and the message says how many it found.
+- A page set is built with all its pages, so asking for one page runs the constructors of all of them. A page constructor should only store the engine. The automatic way builds only the page that is asked for.
+- The two SwagLabs page sets use the new form, with a comment on the usage.
+
+**Why:** Page sets made a missing page a build error, but the pages themselves were still created with `new LoginPage(engine)` in every engine's page set. That repeats the constructor call in each page set, so a page that gains a dependency means editing every page set, and it does not use the container the way the automatic way does. Listing the pages as constructor parameters keeps the build error, because the interface still requires each property, and lets the container build the pages. Checked with fake engines (two scopes, engines created and disposed per test, a registered component and the configuration injected into a page, parameters in any order, the old `new` form, two engine types rejected) and with the real SwagLabs page sets and engines, without opening a browser. A temporary extra property on `ISwagLabsPages` gave `CS0535` in `SeleniumSwagLabsPages`.
+
+**Guide:** `src/Core/TestWare.Core/docs/README.md` updated.
+
+### 0006 · 2026-10-15 · MSTest samples register with the scan, with `Configure` as a commented alternative
+
+**Files:** `samples/tests/TestWare.Samples.Tests.MsTest/Hooks.cs`, `samples/tests/TestWare.Samples.Test.MsTest.ExtemdingEngines/TestSuiteBase.cs`, `samples/tests/TestWare.Samples.Tests.MsTest.Screenplay/TestSuiteBase.cs`, `samples/tests/TestWare.Samples.Tests.MsTest.SeleniumPlaywrightInteroperability/Hooks.cs`
+
+**What:**
+- The four MSTest samples call `RegisterTestWareComponents` again, as in the original. Each keeps its `Configure` form as a commented block above that call. Uncommenting the block and commenting the scan call switches the sample to the explicit way. The NUnit sample still uses `Configure`.
+- All four blocks were uncommented once and built (no errors), then restored. The Screenplay block needs `using TestWare.Engines.PlaywrightEngine;`, which a comment says.
+
+**Why:** Both ways of registering exist, and the same tests should be able to run with either to compare them. Switching a sample used to mean rewriting its start-up hook; with the commented block it is a swap of two lines.
+
+**Guide:** `src/Core/TestWare.Core/docs/README.md` updated (one sentence).
